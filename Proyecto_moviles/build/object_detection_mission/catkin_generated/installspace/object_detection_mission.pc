@@ -1,0 +1,8 @@
+prefix=/home/franciscocj/Proyecto_moviles/install
+
+Name: object_detection_mission
+Description: Description of object_detection_mission
+Version: 0.0.0
+Cflags: 
+Libs: -L${prefix}/lib 
+Requires: 
