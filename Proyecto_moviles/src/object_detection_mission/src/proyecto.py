@@ -6,6 +6,7 @@ import actionlib
 from smach import State, StateMachine
 import smach_ros
 from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
+from geometry_msgs.msg import PoseStamped
 from tf.transformations import quaternion_from_euler
 import math
 
@@ -20,10 +21,25 @@ class RouteFollowingState(State):
     def __init__(self, waypoints):
         State.__init__(self, outcomes=['route_completed'])
         self.waypoints = waypoints
+        self.detected_objects = []  # Lista para almacenar objetos detectados
         self.move_base_client = actionlib.SimpleActionClient('move_base', MoveBaseAction)
+        
         rospy.loginfo("Esperando conexión con el servidor move_base...")
         self.move_base_client.wait_for_server()
         rospy.loginfo("Conexión establecida con el servidor move_base.")
+
+        # Suscribirse al tópico de objetos detectados
+        rospy.Subscriber('/detected_objects', PoseStamped, self.object_callback)
+
+    def object_callback(self, msg):
+        """
+        Callback para procesar objetos detectados.
+        """
+        # Extraer la posición global del objeto detectado
+        x = msg.pose.position.x
+        y = msg.pose.position.y
+        self.detected_objects.append({'x': x, 'y': y})
+        rospy.loginfo(f"Objeto detectado en posición: x={x}, y={y}")
 
     def execute(self, userdata):
         rospy.loginfo("Iniciando recorrido por waypoints...")
@@ -50,7 +66,11 @@ class RouteFollowingState(State):
                 continue
             rospy.loginfo(f"Waypoint {name} alcanzado.")
 
-        rospy.loginfo("Ruta completada. Regresando al inicio...")
+        # Mostrar objetos detectados al completar la ruta
+        rospy.loginfo("Ruta completada. Objetos detectados:")
+        for obj in self.detected_objects:
+            rospy.loginfo(f"Objeto en posición: x={obj['x']}, y={obj['y']}")
+
         return 'route_completed'
 
     def calcular_orientacion(self, current_position, next_position):
