@@ -1,0 +1,15 @@
+<launch>
+    <!-- Lanzar selector.launch -->
+    <!-- <include file="$(find object_detection_mission)/launch/proyecto.launch"/> -->
+    <include file="$(find object_detection_mission)/launch/mapa.launch"/>
+    <include file="$(find turtlebot_rviz_launchers)/launch/view_navigation.launch"/> 
+
+    <!-- Especifica el archivo del mapa que deseas usar -->
+    <arg name="map_file" default="$(find object_detection_mission)/worlds/map.yaml"/>
+
+    <!-- Nodo AMCL para localización -->
+    <include file="$(find turtlebot_gazebo)/launch/amcl_demo.launch">
+        <arg name="map_file" value="$(arg map_file)"/>
+    </include>
+
+</launch>
