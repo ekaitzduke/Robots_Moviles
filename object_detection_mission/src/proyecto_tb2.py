@@ -11,6 +11,16 @@ from geometry_msgs.msg import PoseStamped
 from tf.transformations import quaternion_from_euler
 import random
 
+# Clase para representar un objeto detectado
+class DetectedObject:
+    def __init__(self, x, y, object_type):
+        self.x = x
+        self.y = y
+        self.object_type = object_type  # Tipo de objeto, como 'botella', 'silla', etc.
+
+    def __repr__(self):
+        return f"Objeto({self.object_type}, x={self.x}, y={self.y})"
+
 # Waypoints específicos para un entorno típico de TurtleBot 2
 waypoints = [
     ['Inicio', (2.0, 3.0)],  # Punto de partida
@@ -34,7 +44,7 @@ def crear_destino(x, y):
     goal.target_pose.pose.orientation.w = 1.0  # Orientación neutral
     return goal
 
-# Función global para crear el movimiento al destino indicado con un rango de error (Ya que en dicha posición se encontrará un objeto)
+# Función global para crear el movimiento al destino indicado con un rango de error
 def crear_destino_con_rango(x, y, rango=0.5):
     """
     Crea un objetivo de navegación para move_base dentro de un rango especificado.
@@ -49,7 +59,6 @@ def crear_destino_con_rango(x, y, rango=0.5):
     goal.target_pose.pose.position.y = y + dy
     goal.target_pose.pose.orientation.w = 1.0  # Orientación neutral
     return goal
-
 
 # Estado para esperar comandos de voz
 class WaitForOrder(State):
@@ -114,7 +123,7 @@ class TurtleBot2NavigationState(State):
         rospy.Subscriber('/detected_objects', PoseStamped, self.object_callback)
 
     def object_callback(self, msg):
-        detected_objects.append({'x': msg.pose.position.x, 'y': msg.pose.position.y})
+        detected_objects.append(DetectedObject(msg.pose.position.x, msg.pose.position.y, "objeto"))
 
     def execute(self, userdata):
         rospy.loginfo("Iniciando navegación...")
@@ -135,7 +144,7 @@ class TurtleBot2NavigationState(State):
         if detected_objects:
             rospy.loginfo("Objetos detectados durante la ruta:")
             for i, obj in enumerate(detected_objects):
-                rospy.loginfo(f"Objeto {i + 1}: x={obj['x']}, y={obj['y']}")
+                rospy.loginfo(f"Objeto {i + 1}: {obj}")
         else:
             rospy.loginfo("No se detectaron objetos durante la ruta.")
         
@@ -161,14 +170,14 @@ class GoToDetectedObjects(State):
 
         # Bucle para recorrer los objetos
         for i, obj in enumerate(detected_objects):
-            rospy.loginfo(f"Navegando hacia objeto {i + 1} en x={obj['x']}, y={obj['y']}.")
-            goal = crear_destino_con_rango(obj['x'], obj['y'])
+            rospy.loginfo(f"Navegando hacia {obj}.")
+            goal = crear_destino_con_rango(obj.x, obj.y)
             self.move_base_client.send_goal(goal)
             success = self.move_base_client.wait_for_result(rospy.Duration(60))
             if success:
-                rospy.loginfo(f"Objeto {i + 1} alcanzado.")
+                rospy.loginfo(f"{obj} alcanzado.")
             else:
-                rospy.logwarn(f"No se pudo alcanzar el objeto {i + 1}.")
+                rospy.logwarn(f"No se pudo alcanzar {obj}.")
 
         # Una vez se ha salido de la patrulla se vuelve a la posición de Inicio
         rospy.loginfo("Regresando a la posición de Inicio")
@@ -176,80 +185,45 @@ class GoToDetectedObjects(State):
         self.move_base_client.send_goal(goal)
 
         # Verificar si el objetivo fue alcanzado
-        state = self.move_base_client.get_state()
-        if state == actionlib.GoalStatus.SUCCEEDED:
-            rospy.loginfo("Vuelta al Inicio.")
-        else:
-            rospy.logwarn("No se pudo alcanzar el objetivo.")
-        
-        return 'objects_visited'
-
-# Estado para hacer como una patrulla al rededor de los objetos
-class PatrolAroundObjects(State):
-    def __init__(self, waypoints):
-        State.__init__(self, outcomes=['patrol_finished'])
-        self.move_base_client = actionlib.SimpleActionClient('/move_base', MoveBaseAction)
-        self.move_base_client.wait_for_server()
-
-        # Variables para el estado
-        self.completed = False
-        self.comand = None 
-        self.waypoints = waypoints
-
-        # Puede que no haga falta. Comprobarlo
-        rospy.Subscriber('/voice_commands', String, self.command_callback)      # Subscripción al tópic de los comandos de voz
-    
-    def execute(self, userdata):
-        rospy.loginfo("Iniciando la patrulla al rededor de los objetos")
-
-        # Comprobación de objetos detectados
-        if not detected_objects:
-            rospy.loginfo("No hay objetos detectados para patrullar.")
-            return 'patrol_finished'
-
-        current_index = 0   # Índice del primer objeto
-        # Bucle while para realizar la patrulla
-        while not self.completed and not rospy.is_shutdown():
-            rospy.loginfo("Patrullando hacia el siguiente objeto...")
-
-            obj = detected_objects[current_index]
-            goal = crear_destino_con_rango(obj['x'], obj['y'])
-            self.move_base_client.send_goal(goal)
-
-            if self.move_base_client.wait_for_result(rospy.Duration(60)):
-                rospy.loginfo(f"Objeto en x={obj['x']}, y={obj['y']} alcanzado.")
-                current_index = current_index + 1
-                if current_index == len(detected_objects):
-                    current_index = 0
-            else:
-                rospy.logwarn(f"No se pudo alcanzar el objeto en x={obj['x']}, y={obj['y']}.")
-
-            # Verificar si se recibió el comando de finalizar
-            if self.completed:
-                rospy.loginfo("Finalizando patrullaje por comando de voz.")
-                break
-
-        # Una vez se ha salido de la patrulla se vuelve a la posición de Inicio
-        rospy.loginfo("Regresando a la posición de Inicio")
-        goal = crear_destino(self.waypoints[0][1][0], self.waypoints[0][1][1])
-        self.move_base_client.send_goal(goal)
-
-        # Verificar si el objetivo fue alcanzado
-        state = self.move_base_client.get_state()
-        self.move_base_client.send_goal(goal)
         if self.move_base_client.wait_for_result(rospy.Duration(60)):
             rospy.loginfo("Vuelta al Inicio completada.")
         else:
             rospy.logwarn("No se pudo alcanzar el objetivo de Inicio.")
+        
+        return 'objects_visited'
+
+# Estado para patrullar objetos detectados
+class PatrolObjects(State):
+    def __init__(self):
+        State.__init__(self, outcomes=['patrol_completed'])
+        self.move_base_client = actionlib.SimpleActionClient('/move_base', MoveBaseAction)
+        self.move_base_client.wait_for_server()
+
+    def execute(self, userdata):
+        rospy.loginfo("Iniciando patrulla de objetos detectados...")
+
+        if not detected_objects:
+            rospy.loginfo("No hay objetos detectados para patrullar.")
+            return 'patrol_completed'
+
+        # Bucle infinito para patrullar los objetos detectados
+        while not rospy.is_shutdown():
+            for obj in detected_objects:
+                rospy.loginfo(f"Patrullando hacia {obj}.")
+                goal = crear_destino_con_rango(obj.x, obj.y)
+                self.move_base_client.send_goal(goal)
+                success = self.move_base_client.wait_for_result(rospy.Duration(60))
+
+                if success:
+                    rospy.loginfo(f"Llegó a {obj}.")
+                else:
+                    rospy.logwarn(f"No se pudo alcanzar {obj}.")
             
-        return 'patrol_finished'
+            # Aquí podrías añadir una condición para detener la patrulla.
+            rospy.sleep(2)  # Pausa antes de repetir la patrulla.
 
-    def command_callback(self, msg):
-        self.comand = msg.data.strip().lower()
+        return 'patrol_completed'
 
-        # Si se recibe el comando "finalizar" se sale del bucle de la patrulla
-        if self.comand == "finalizar":
-            self.completed = True
 
 # Main del programa
 def main():
@@ -258,24 +232,25 @@ def main():
 
     with sm:
         StateMachine.add('WAIT_ORDER', WaitForOrder(),
-                         transitions={
-                             'trayectory': 'ROUTE_FOLLOWING',
-                             'go_to_objects': 'GO_TO_OBJECTS',
-                             'patrol_objects': 'PATROL_OBJECTS',
-                             'finish': 'mission_completed'
-                         })
+                     transitions={
+                         'trayectory': 'ROUTE_FOLLOWING',
+                         'go_to_objects': 'GO_TO_OBJECTS',
+                         'patrol_objects': 'PATROL_OBJECTS',
+                         'finish': 'mission_completed'
+                     })
 
         StateMachine.add('ROUTE_FOLLOWING', TurtleBot2NavigationState(waypoints),
-                         transitions={
-                             'route_completed': 'WAIT_ORDER',
-                             'navigation_failed': 'mission_failed'
-                         })
+                     transitions={
+                         'route_completed': 'WAIT_ORDER',
+                         'navigation_failed': 'mission_failed'
+                     })
 
         StateMachine.add('GO_TO_OBJECTS', GoToDetectedObjects(waypoints),
-                         transitions={'objects_visited': 'WAIT_ORDER'})
-        
-        StateMachine.add('PATROL_OBJECTS', PatrolAroundObjects(waypoints),
-                         transitions={'patrol_finished': 'WAIT_ORDER'})
+                     transitions={'objects_visited': 'WAIT_ORDER'})
+
+        StateMachine.add('PATROL_OBJECTS', PatrolObjects(),
+                     transitions={'patrol_completed': 'WAIT_ORDER'})
+
 
     sis = smach_ros.IntrospectionServer('server_name', sm, '/SM_ROOT')
     sis.start()
