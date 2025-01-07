@@ -10,6 +10,7 @@ from std_msgs.msg import String
 from geometry_msgs.msg import PoseStamped
 from tf.transformations import quaternion_from_euler
 import random
+import math
 
 # Clase para representar un objeto detectado
 class DetectedObject:
@@ -23,10 +24,10 @@ class DetectedObject:
 
 # Waypoints específicos para un entorno típico de TurtleBot 2
 waypoints = [
-    ['Inicio', (2.0, 3.0)],  # Punto de partida
-    ['Punto A', (-2.0, 2.0)],  # Primera ubicación
-    ['Punto B', (3.0, 6.0)],  # Segunda ubicación
-    ['Punto C', (3.0, 1.0)],  # Tercera ubicación
+    ['Inicio', (0.0, 0.0)],  # Punto de partida
+    ['Punto A', (2.0, 2.0)],  # Primera ubicación
+    ['Punto B', (-2.0, 2.0)],  # Segunda ubicación
+    ['Punto C', (-2.0, -2.0)],  # Tercera ubicación
 ]
 
 detected_objects = []  # Lista global para almacenar objetos detectados
@@ -193,6 +194,23 @@ class TurtleBot2NavigationState(State):
             rospy.loginfo("No se detectaron objetos durante la ruta.")
         
         return 'route_completed'
+
+    def calcular_orientacion(self, current_position, next_position):
+        delta_x = next_position[0] - current_position[0]
+        delta_y = next_position[1] - current_position[1]
+        return math.atan2(delta_y, delta_x)
+
+    def crear_destino(self, x, y, orientation):
+        goal = MoveBaseGoal()
+        goal.target_pose.header.frame_id = 'map'
+        goal.target_pose.header.stamp = rospy.Time.now()
+        goal.target_pose.pose.position.x = x
+        goal.target_pose.pose.position.y = y
+        goal.target_pose.pose.orientation.x = orientation[0]
+        goal.target_pose.pose.orientation.y = orientation[1]
+        goal.target_pose.pose.orientation.z = orientation[2]
+        goal.target_pose.pose.orientation.w = orientation[3]
+        return goal
 
 
 # Estado para navegar hacia objetos detectados
