@@ -127,7 +127,7 @@ class TurtleBot2NavigationState(State):
 
     def execute(self, userdata):
         rospy.loginfo("Iniciando navegación...")
-        for name, position in self.waypoints:
+        for idx, (name, position) in enumerate(self.waypoints):                                           # Se ha añadido la variable "index" y el enumerate
             for attempt in range(1, self.max_attempts + 1):
                 rospy.loginfo(f"Navegando hacia {name}, intento {attempt}.")
                 goal = crear_destino(position[0], position[1])
@@ -136,9 +136,39 @@ class TurtleBot2NavigationState(State):
                 if success:
                     rospy.loginfo(f"{name} alcanzado.")
                     break
-                rospy.logwarn(f"Intento {attempt} fallido.")
-            else:
-                rospy.logerr(f"No se pudo alcanzar {name}.")
+                else:
+                    rospy.logwarn(f"Intento {attempt} fallido.")
+
+                if attempt == self.max_attempts:
+                    rospy.logerr(f"No se pudo alcanzar {name} en el último intento.")
+                    if idx > 0:
+                        previous_name, previous_position = self.waypoints[idx - 1]
+                        rospy.loginfo(f"Intentando regresar al waypoint anterior: {previous_name}.")
+                            
+                        goal_prev = crear_destino(previous_position[0], previous_position[1])
+                        self.move_base_client.send_goal(goal_prev)
+                        success_prev = self.move_base_client.wait_for_result(rospy.Duration(120))
+                            
+                        if success_prev:
+                            rospy.loginfo(f"Regresado exitosamente al waypoint anterior: {previous_name}.")
+                                
+                            rospy.loginfo(f"Intentando alcanzar nuevamente {name} desde {previous_name}.")
+                            goal = crear_destino(position[0], position[1])
+                            self.move_base_client.send_goal(goal)
+                            success = self.move_base_client.wait_for_result(rospy.Duration(120))
+
+                            if success:
+                                rospy.loginfo(f"{name} alcanzado desde el waypoint anterior.")
+                                break
+                            else:
+                                rospy.logwarn(f"Fallo nuevamente al intentar alcanzar {name} desde {previous_name}.")
+                        else:
+                            rospy.logwarn(f"No se pudo regresar al waypoint anterior: {previous_name}.")
+                    else:
+                        rospy.logwarn("No existe un waypoint anterior para intentar una ruta alternativa.")
+
+            if not success:
+                rospy.logerr(f"Abortando misión: no se pudo alcanzar {name}.")
                 return 'navigation_failed'
         
         if detected_objects:
@@ -199,6 +229,10 @@ class PatrolObjects(State):
         self.move_base_client = actionlib.SimpleActionClient('/move_base', MoveBaseAction)
         self.move_base_client.wait_for_server()
 
+        self.comand = None
+        self.completed = False
+        rospy.Subscriber('/voice_commands', String, self.voice_callback)
+
     def execute(self, userdata):
         rospy.loginfo("Iniciando patrulla de objetos detectados...")
 
@@ -206,23 +240,46 @@ class PatrolObjects(State):
             rospy.loginfo("No hay objetos detectados para patrullar.")
             return 'patrol_completed'
 
-        # Bucle infinito para patrullar los objetos detectados
-        while not rospy.is_shutdown():
+        # Bucle para patrullar los objetos detectados
+        while not rospy.is_shutdown() and not self.completed:
             for obj in detected_objects:
+                if self.completed:  # Verificar si se recibió el comando "finalizar"
+                    rospy.loginfo("Comando 'finalizar' recibido. Finalizando patrullaje.")
+                    break
+
                 rospy.loginfo(f"Patrullando hacia {obj}.")
                 goal = crear_destino_con_rango(obj.x, obj.y)
                 self.move_base_client.send_goal(goal)
-                success = self.move_base_client.wait_for_result(rospy.Duration(60))
 
-                if success:
-                    rospy.loginfo(f"Llegó a {obj}.")
+                # Alomejor hay que quitar la parte de abajo para que en mitad de la trayectoria se detenga
+
+                if self.move_base_client.wait_for_result(rospy.Duration(60)):
+                    rospy.loginfo(f"{obj} alcanzado.")
                 else:
                     rospy.logwarn(f"No se pudo alcanzar {obj}.")
-            
-            # Aquí podrías añadir una condición para detener la patrulla.
-            rospy.sleep(2)  # Pausa antes de repetir la patrulla.
+
+            rospy.sleep(0.5)  # Breve pausa antes de la siguiente iteración
+
+        # Reiniciamos la variable para poder volver a entrar al bucle en futuras llamadas
+        self.completed = None
+
+        # Una vez se ha salido de la patrulla, regresar al inicio
+        rospy.loginfo("Regresando a la posición de Inicio...")
+        goal = crear_destino(waypoints[0][1][0], waypoints[0][1][1])
+        self.move_base_client.send_goal(goal)
+
+        if self.move_base_client.wait_for_result(rospy.Duration(60)):
+            rospy.loginfo("Vuelta al Inicio completada.")
+        else:
+            rospy.logwarn("No se pudo alcanzar el objetivo de Inicio.")
 
         return 'patrol_completed'
+    
+    def voice_callback(self, msg):
+        self.comand = msg.data.strip().lower()
+        if self.comand == "finalizar":
+            self.completed = True
+
 
 
 # Main del programa
