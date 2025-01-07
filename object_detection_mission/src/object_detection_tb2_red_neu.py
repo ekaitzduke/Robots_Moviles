@@ -8,6 +8,7 @@ import tf2_geometry_msgs
 from cv_bridge import CvBridge
 from sensor_msgs.msg import Image
 from geometry_msgs.msg import PoseStamped
+from std_msgs.msg import String
 from tf.transformations import quaternion_from_euler
 import numpy as np
 
@@ -30,6 +31,7 @@ class TurtleBot2ObjectDetectionNode:
 
         # Publicador para objetos detectados
         self.object_pub = rospy.Publisher('/detected_objects', PoseStamped, queue_size=10)
+        self.shape_pub = rospy.Publisher('/detected_shapes', String, queue_size=10)
 
         # Buffer y listener de transformaciones TF para TurtleBot 2
         self.tf_buffer = tf2_ros.Buffer()
@@ -110,22 +112,12 @@ class TurtleBot2ObjectDetectionNode:
         pose.pose.position.y = position[1]
         pose.pose.position.z = 0.0
 
-        # Orientación por defecto
-        quaternion = quaternion_from_euler(0, 0, 0)
-        pose.pose.orientation.x = quaternion[0]
-        pose.pose.orientation.y = quaternion[1]
-        pose.pose.orientation.z = quaternion[2]
-        pose.pose.orientation.w = quaternion[3]
-
-        rospy.loginfo(f"Objeto {shape} en: {position}")
         self.object_pub.publish(pose)
+        self.shape_pub.publish(shape)
 
 def main():
-    try:
-        node = TurtleBot2ObjectDetectionNode()
-        rospy.spin()
-    except rospy.ROSInterruptException:
-        pass
+    node = TurtleBot2ObjectDetectionNode()
+    rospy.spin()
 
 if __name__ == "__main__":
     main()
