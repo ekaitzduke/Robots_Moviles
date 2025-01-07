@@ -1,0 +1,30 @@
+<launch>
+    <!-- Lanzar selector.launch -->
+    <include file="$(find object_detection_mission)/launch/mapa.launch"/>
+    <include file="$(find turtlebot_rviz_launchers)/launch/view_navigation.launch"/> 
+
+    <!-- Especifica el archivo del mapa que deseas usar -->
+    <arg name="map_file" default="$(find object_detection_mission)/worlds/map.yaml"/>
+
+    <!-- Nodo AMCL para localización -->
+    <include file="$(find turtlebot_gazebo)/launch/amcl_demo.launch">
+        <arg name="map_file" value="$(arg map_file)"/>
+    </include>
+
+    <!-- Añadir los objetos -->
+    <node name="spawn_object_1" pkg="gazebo_ros" type="spawn_model" output="screen">
+        <!-- Asegúrate de que el nombre del modelo esté bien definido -->
+        <param name="model_name" value="table_marble"/>
+        <!-- Usar la ruta completa del archivo .sdf -->
+        <param name="model_xml" value="file:///home/franciscocj/.gazebo/models/table_marble/model.sdf"/>
+        <param name="robot_namespace" value="table"/>
+        <param name="initial_pose" value="-x 1 -y 3 -z 0"/>
+    </node>
+    
+    <!-- <node name="spawn_object_2" pkg="gazebo_ros" type="spawn_model" output="screen">
+        <param name="model_name" value="sphere_1"/>
+        <param name="model_xml" command="cat ~/.gazebo/models/sphere/model.sdf"/>
+        <param name="robot_namespace" value="sphere_1"/>
+        <param name="initial_pose" value="-x -2 -y -1 -z 0.5"/>
+    </node> -->
+</launch>
