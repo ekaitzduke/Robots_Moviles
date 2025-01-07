@@ -96,7 +96,8 @@ class TurtleBot2NavigationState(State):
 
     def execute(self, userdata):
         rospy.loginfo("Iniciando navegación...")
-        for idx, (name, position) in enumerate(self.waypoints):
+        contador = 0
+        for name, position in enumerate(self.waypoints):
             for attempt in range(1, self.max_attempts + 1):
                 rospy.loginfo(f"Navegando hacia {name}, intento {attempt}.")
                 goal = crear_destino(position[0], position[1])
@@ -109,7 +110,7 @@ class TurtleBot2NavigationState(State):
 
                 if attempt == self.max_attempts:
                     rospy.logerr(f"No se pudo alcanzar {name} en el último intento.")
-                    if idx > 0:
+                    if contador > 0:
                         previous_name, previous_position = self.waypoints[idx - 1]
                         rospy.loginfo(f"Intentando regresar al waypoint anterior: {previous_name}.")
                         
@@ -134,6 +135,8 @@ class TurtleBot2NavigationState(State):
                             rospy.logwarn(f"No se pudo regresar al waypoint anterior: {previous_name}.")
                     else:
                         rospy.logwarn("No existe un waypoint anterior para intentar una ruta alternativa.")
+                
+                contador = contador + 1
 
             if not success:
                 rospy.logerr(f"Abortando misión: no se pudo alcanzar {name}.")
