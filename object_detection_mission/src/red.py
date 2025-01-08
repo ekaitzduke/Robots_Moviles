@@ -97,6 +97,7 @@ class TurtleBot2ObjectDetectionNode:
             try:
                 # Transformar la posición del objeto al marco de referencia del mapa
                 object_position_map = self.tf_buffer.transform(object_position_camera, "map", rospy.Duration(1.0))
+                rospy.loginfo(f"Posición transformada del objeto: x={object_position_map.point.x}, y={object_position_map.point.y}, z={object_position_map.point.z}")
 
                 # Verificar si el objeto ya ha sido detectado
                 duplicate = False
