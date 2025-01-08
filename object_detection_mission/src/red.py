@@ -7,7 +7,7 @@ import tf2_ros
 import tf2_geometry_msgs
 from cv_bridge import CvBridge, CvBridgeError
 from sensor_msgs.msg import Image
-from geometry_msgs.msg import PoseStamped, Quaternion
+from geometry_msgs.msg import PoseStamped, Quaternion, PointStamped
 from std_msgs.msg import String
 from tf.transformations import quaternion_from_euler
 import numpy as np
@@ -86,27 +86,56 @@ class TurtleBot2ObjectDetectionNode:
             label = CUSTOM_CLASSES[class_id]
             rospy.loginfo(f"Detección: {label} con confianza {confidence:.2f} en posición x={startX}, y={startY}, w={endX-startX}, h={endY-startY}")
 
-            # Publicar la detección
-            pose = PoseStamped()
-            pose.header.stamp = rospy.Time.now()
-            pose.header.frame_id = "camera_link"
-            pose.pose.position.x = (startX + endX) / 2
-            pose.pose.position.y = (startY + endY) / 2
-            pose.pose.position.z = 0
+            # Calcular la posición del objeto en el marco de referencia de la cámara
+            object_position_camera = PointStamped()
+            object_position_camera.header.frame_id = "camera_link"
+            object_position_camera.header.stamp = rospy.Time.now()
+            object_position_camera.point.x = (startX + endX) / 2
+            object_position_camera.point.y = (startY + endY) / 2
+            object_position_camera.point.z = 0
 
-            # Convertir el array de quaternion a un objeto Quaternion
-            quaternion = quaternion_from_euler(0, 0, 0)
-            pose.pose.orientation = Quaternion(*quaternion)
-            self.object_pub.publish(pose)
+            try:
+                # Transformar la posición del objeto al marco de referencia del mapa
+                object_position_map = self.tf_buffer.transform(object_position_camera, "map", rospy.Duration(1.0))
 
-            shape_msg = String()
-            shape_msg.data = label
-            self.shape_pub.publish(shape_msg)
+                # Verificar si el objeto ya ha sido detectado
+                duplicate = False
+                for obj in self.detected_objects:
+                    distance = np.sqrt((obj.pose.position.x - object_position_map.point.x)**2 +
+                                       (obj.pose.position.y - object_position_map.point.y)**2)
+                    if distance < 0.5:  # Umbral de distancia para considerar duplicados
+                        duplicate = True
+                        break
+
+                if not duplicate:
+                    # Publicar la detección
+                    pose = PoseStamped()
+                    pose.header.stamp = rospy.Time.now()
+                    pose.header.frame_id = "map"
+                    pose.pose.position.x = object_position_map.point.x
+                    pose.pose.position.y = object_position_map.point.y
+                    pose.pose.position.z = object_position_map.point.z
+
+                    # Convertir el array de quaternion a un objeto Quaternion
+                    quaternion = quaternion_from_euler(0, 0, 0)
+                    pose.pose.orientation = Quaternion(*quaternion)
+                    self.object_pub.publish(pose)
+
+                    shape_msg = String()
+                    shape_msg.data = label
+                    self.shape_pub.publish(shape_msg)
+
+                    # Añadir el objeto detectado a la lista
+                    self.detected_objects.append(pose)
+
+            except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException) as e:
+                rospy.logerr(f"Error al transformar la posición del objeto: {e}")
 
 if __name__ == '__main__':
     try:
-        confidence_threshold = 0.6  # Ajusta este valor según sea necesario
+        confidence_threshold = 0.8  # Ajusta este valor según sea necesario
         node = TurtleBot2ObjectDetectionNode(confidence_threshold=confidence_threshold)
         rospy.spin()
     except rospy.ROSInterruptException:
         pass
+           
