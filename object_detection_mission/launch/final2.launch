@@ -14,5 +14,29 @@
     <!-- Añadir los objetos -->
     <node name="spawn_object_1" pkg="gazebo_ros" type="spawn_model" output="screen" args="-sdf -file /home/franciscocj/.gazebo/models/first_2015_trash_can/model.sdf -model first_2015_trash_can -x 0 -y 3 -z 0 -R 0 -P 0 -Y 0"/>
 
+    <!-- Añadir el objeto OfficeChairGrey -->
+    <node name="spawn_office_chair" pkg="gazebo_ros" type="spawn_model" output="screen">
+        <param name="model_name" value="OfficeChairGrey"/>
+        <param name="model_xml" value="$(cat /home/hp/.gazebo/models/OfficeChairGrey/model.sdf)"/>
+        <param name="robot_namespace" value="office_chair"/>
+        <param name="initial_pose" value="{x: 0, y: -2, z: 0, roll: 0, pitch: 0, yaw: 0}"/>
+    </node>
+
+    <!-- Añadir el objeto MonitorAndKeyboard -->
+    <node name="spawn_monitor_keyboard" pkg="gazebo_ros" type="spawn_model" output="screen">
+        <param name="model_name" value="MonitorAndKeyboard"/>
+        <param name="model_xml" value="$(cat /home/hp/.gazebo/models/MonitorAndKeyboard/model.sdf)"/>
+        <param name="robot_namespace" value="monitor_keyboard"/>
+        <param name="initial_pose" value="{x: 2, y: 0, z: 0.8, roll: 0, pitch: 0, yaw: 0}"/>
+    </node>
+
+    <!-- Añadir el objeto Bicycle -->
+    <node name="spawn_bicycle" pkg="gazebo_ros" type="spawn_model" output="screen">
+        <param name="model_name" value="Bicycle"/>
+        <param name="model_xml" value="$(cat /home/hp/.gazebo/models/Bicycle/model.sdf)"/>
+        <param name="robot_namespace" value="bicycle"/>
+        <param name="initial_pose" value="{x: -3, y: 1, z: 0, roll: 0, pitch: 0, yaw: 0}"/>
+    </node>
+
     <!-- <node name="spawn_object_2" pkg="gazebo_ros" type="spawn_model" output="screen" args="-sdf -file /home/hp/.gazebo/models/sphere/model.sdf -model sphere_1 -x -2 -y -1 -z 0.5 -R 0 -P 0 -Y 0"/> -->
 </launch>
