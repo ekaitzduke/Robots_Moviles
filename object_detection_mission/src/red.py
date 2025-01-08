@@ -28,11 +28,12 @@ CUSTOM_CLASSES = CLASSES.copy()
 CUSTOM_CLASSES[16] = "bin"  # Suponiendo que "pottedplant" es la clase 16
 
 class TurtleBot2ObjectDetectionNode:
-    def __init__(self):
+    def __init__(self, confidence_threshold=0.5):
         rospy.init_node('turtlebot2_object_detection')
 
         self.bridge = CvBridge()
         self.detected_objects = []
+        self.confidence_threshold = confidence_threshold
 
         # Suscriptor para Kinect del TurtleBot 2
         rospy.Subscriber('/camera/rgb/image_raw', Image, self.image_callback)
@@ -56,7 +57,7 @@ class TurtleBot2ObjectDetectionNode:
         results = []
         for i in range(detections.shape[2]):
             confidence = detections[0, 0, i, 2]
-            if confidence > 0.5:
+            if confidence > self.confidence_threshold:
                 idx = int(detections[0, 0, i, 1])
                 if idx >= len(CUSTOM_CLASSES):
                     rospy.logwarn(f"Class ID {idx} fuera de rango para CUSTOM_CLASSES con tamaño {len(CUSTOM_CLASSES)}")
@@ -104,7 +105,8 @@ class TurtleBot2ObjectDetectionNode:
 
 if __name__ == '__main__':
     try:
-        node = TurtleBot2ObjectDetectionNode()
+        confidence_threshold = 0.6  # Ajusta este valor según sea necesario
+        node = TurtleBot2ObjectDetectionNode(confidence_threshold=confidence_threshold)
         rospy.spin()
     except rospy.ROSInterruptException:
         pass
