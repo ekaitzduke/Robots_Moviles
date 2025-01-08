@@ -12,19 +12,7 @@
     </include>
 
     <!-- Añadir los objetos -->
-    <node name="spawn_object_1" pkg="gazebo_ros" type="spawn_model" output="screen">
-        <!-- Asegúrate de que el nombre del modelo esté bien definido -->
-        <param name="model_name" value="table_marble"/>
-        <!-- Usar la ruta completa del archivo .sdf -->
-        <param name="model_xml" value="$(cat /home/hp/.gazebo/models/table_marble/model.sdf)"/>
-        <param name="robot_namespace" value="table"/>
-        <param name="initial_pose" value="{x: 1, y: 3, z: 0, roll: 0, pitch: 0, yaw: 0}"/>
-    </node>
-    
-    <!-- <node name="spawn_object_2" pkg="gazebo_ros" type="spawn_model" output="screen">
-        <param name="model_name" value="sphere_1"/>
-        <param name="model_xml" command="cat ~/.gazebo/models/sphere/model.sdf"/>
-        <param name="robot_namespace" value="sphere_1"/>
-        <param name="initial_pose" value="{x: -2, y: -1, z: 0.5, roll: 0, pitch: 0, yaw: 0}"/>
-    </node> -->
+    <node name="spawn_object_1" pkg="gazebo_ros" type="spawn_model" output="screen" args="-sdf -file /home/franciscocj/.gazebo/models/first_2015_trash_can/model.sdf -model first_2015_trash_can -x 0 -y 3 -z 0 -R 0 -P 0 -Y 0"/>
+
+    <!-- <node name="spawn_object_2" pkg="gazebo_ros" type="spawn_model" output="screen" args="-sdf -file /home/hp/.gazebo/models/sphere/model.sdf -model sphere_1 -x -2 -y -1 -z 0.5 -R 0 -P 0 -Y 0"/> -->
 </launch>
