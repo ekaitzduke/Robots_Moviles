@@ -7,7 +7,7 @@ import tf2_ros
 import tf2_geometry_msgs
 from cv_bridge import CvBridge, CvBridgeError
 from sensor_msgs.msg import Image
-from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import PoseStamped, Quaternion
 from std_msgs.msg import String
 from tf.transformations import quaternion_from_euler
 import numpy as np
@@ -22,6 +22,10 @@ CLASSES = ["background", "aeroplane", "bicycle", "bird", "boat",
            "bottle", "bus", "car", "cat", "chair", "cow", "diningtable",
            "dog", "horse", "motorbike", "person", "pottedplant", "sheep",
            "sofa", "train", "tvmonitor"]
+
+# Mapeo de clases para incluir "bin"
+CUSTOM_CLASSES = CLASSES.copy()
+CUSTOM_CLASSES[16] = "bin"  # Suponiendo que "pottedplant" es la clase 16
 
 class TurtleBot2ObjectDetectionNode:
     def __init__(self):
@@ -54,8 +58,8 @@ class TurtleBot2ObjectDetectionNode:
             confidence = detections[0, 0, i, 2]
             if confidence > 0.5:
                 idx = int(detections[0, 0, i, 1])
-                if idx >= len(CLASSES):
-                    rospy.logwarn(f"Class ID {idx} fuera de rango para CLASSES con tamaño {len(CLASSES)}")
+                if idx >= len(CUSTOM_CLASSES):
+                    rospy.logwarn(f"Class ID {idx} fuera de rango para CUSTOM_CLASSES con tamaño {len(CUSTOM_CLASSES)}")
                     continue
 
                 box = detections[0, 0, i, 3:7] * np.array([width, height, width, height])
@@ -78,7 +82,7 @@ class TurtleBot2ObjectDetectionNode:
         detections = self.detect_objects(cv_image)
         for class_id, confidence, box in detections:
             startX, startY, endX, endY = box
-            label = CLASSES[class_id]
+            label = CUSTOM_CLASSES[class_id]
             rospy.loginfo(f"Detección: {label} con confianza {confidence:.2f} en posición x={startX}, y={startY}, w={endX-startX}, h={endY-startY}")
 
             # Publicar la detección
@@ -88,7 +92,10 @@ class TurtleBot2ObjectDetectionNode:
             pose.pose.position.x = (startX + endX) / 2
             pose.pose.position.y = (startY + endY) / 2
             pose.pose.position.z = 0
-            pose.pose.orientation = quaternion_from_euler(0, 0, 0)
+
+            # Convertir el array de quaternion a un objeto Quaternion
+            quaternion = quaternion_from_euler(0, 0, 0)
+            pose.pose.orientation = Quaternion(*quaternion)
             self.object_pub.publish(pose)
 
             shape_msg = String()
