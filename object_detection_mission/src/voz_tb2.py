@@ -10,7 +10,7 @@ import os
 
 # Lista de comandos válidos para TurtleBot 2
 VALID_COMMANDS = [
-    "trayectoria", "finalizar"
+    "trayectoria", "objetos", "patrulla", "finalizar"
 ]
 
 def normalize_command(command):
