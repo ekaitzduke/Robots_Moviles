@@ -34,10 +34,10 @@ class DetectedObject:
     def __repr__(self):
         return f"Objeto({self.object_type}, x={self.x}, y={self.y}, conf={self.confidence:.2f})"
 
-    # Función para verificar si dos objetos son similares (en función de la clase y proximidad)
+    # Función para verificar si dos objetos son similares (en función de la clase)
     def is_similar(self, other):
         # Compara la clase y si están lo suficientemente cerca en las coordenadas
-        return (self.object_type == other.object_type)
+        return (self.object_type == other.object_type)  # Esto se cambia dependiendo de lo que busquemos a la hora de detectar los objetos
 
 
 class TurtleBot2ObjectDetectionNode:
@@ -103,14 +103,10 @@ class TurtleBot2ObjectDetectionNode:
         return depth_value
 
     def calculate_3d_position(self, u, v, depth):
-        """Calcular la posición 3D en el marco de referencia de la cámara."""
-        # Parámetros intrínsecos de la cámara (ajustar según tu cámara)
-        fx = 525.0  # Focal en X (ajusta según tu cámara)
-        fy = 525.0  # Focal en Y (ajusta según tu cámara)
-        cx = 319.5  # Centro de la imagen en X (ajusta según tu cámara)
-        cy = 239.5  # Centro de la imagen en Y (ajusta según tu cámara)
-
-        # Calcular las coordenadas 3D
+        if depth is None or depth <= 0 or np.isnan(depth):
+            rospy.logwarn(f"Profundidad inválida para el píxel ({u}, {v}): {depth}")
+            return None
+        fx, fy, cx, cy = 525.0, 525.0, 319.5, 239.5
         z = depth
         x = (u - cx) * z / fx
         y = (v - cy) * z / fy
@@ -145,7 +141,7 @@ class TurtleBot2ObjectDetectionNode:
         for class_id, confidence, box in detections:
             startX, startY, endX, endY = box
             label = CLASSES[class_id]
-            rospy.loginfo(f"Detección: {label} con confianza {confidence:.2f} en posición x={startX}, y={startY}, w={endX-startX}, h={endY-startY}")
+            #rospy.loginfo(f"Detección: {label} con confianza {confidence:.2f} en posición x={startX}, y={startY}, w={endX-startX}, h={endY-startY}")    # Quitar mensaje
 
             # Obtener la profundidad en el centro del objeto detectado
             center_x = (startX + endX) // 2
@@ -162,31 +158,38 @@ class TurtleBot2ObjectDetectionNode:
             # Transformar la posición local a global
             global_position = self.transform_to_global(local_position)
 
+            rospy.loginfo(f"Detección: {label} con confianza {confidence:.2f} en x={global_position[0]} e y={global_position[1]}.")
+
             if global_position:
-                # Verificar si ya existe un objeto de esta clase con posiciones similares
+                # Verificar si ya existe un objeto de esta clase 
                 existing_object = self.detected_objects_map.get(label)
                 if existing_object and existing_object.is_similar(DetectedObject(global_position[0], global_position[1], label, confidence)):
                     rospy.loginfo(f"Objeto con clase {label} ya ha sido detectado de manera similar")
-                    continue
+                else:
+                    rospy.loginfo(f"Publicando el objeto: {label}.")
+                    # Publicar la detección
 
-                # Publicar la detección
-                pose = PoseStamped()
-                pose.header.stamp = rospy.Time.now()
-                pose.header.frame_id = "map"
-                pose.pose.position.x = global_position[0]
-                pose.pose.position.y = global_position[1]
-                pose.pose.position.z = global_position[2]
+                    # Guardar el objeto detectado
+                    self.detected_objects_map[label] = DetectedObject(global_position[0], global_position[1], label, confidence)
 
-                quaternion = quaternion_from_euler(0, 0, 0)
-                pose.pose.orientation = Quaternion(*quaternion)
-                self.object_pub.publish(pose)
+                    # Detección del tipo de objeto
+                    shape_msg = String()
+                    shape_msg.data = label
+                    self.shape_pub.publish(shape_msg)
 
-                shape_msg = String()
-                shape_msg.data = label
-                self.shape_pub.publish(shape_msg)
+                    # Detección de las coordenadas
+                    pose = PoseStamped()
+                    pose.header.stamp = rospy.Time.now()
+                    pose.header.frame_id = "map"
+                    pose.pose.position.x = global_position[0]
+                    pose.pose.position.y = global_position[1]
+                    pose.pose.position.z = global_position[2]
 
-                # Guardar el objeto detectado
-                self.detected_objects_map[label] = DetectedObject(global_position[0], global_position[1], label, confidence)
+                    quaternion = quaternion_from_euler(0, 0, 0)
+                    pose.pose.orientation = Quaternion(*quaternion)
+                    self.object_pub.publish(pose)
+
+
 
 if __name__ == '__main__':
     try:
