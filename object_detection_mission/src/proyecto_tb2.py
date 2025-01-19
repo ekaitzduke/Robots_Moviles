@@ -10,7 +10,6 @@ from std_msgs.msg import String
 from geometry_msgs.msg import PoseStamped
 from tf.transformations import quaternion_from_euler
 import random
-import math
 
 # Clase para representar un objeto detectado
 class DetectedObject:
@@ -21,16 +20,26 @@ class DetectedObject:
 
     def __repr__(self):
         return f"Objeto({self.object_type}, x={self.x}, y={self.y})"
+    
+class Poses:
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
 
 # Waypoints específicos para un entorno típico de TurtleBot 2
 waypoints = [
-    ['Inicio', (0.0, 0.0)],  # Punto de partida
-    ['Punto A', (2.0, 2.0)],  # Primera ubicación
-    ['Punto B', (-2.0, 2.0)],  # Segunda ubicación
-    ['Punto C', (-2.0, -2.0)],  # Tercera ubicación
+    ['Inicio', (2.0, 3.0)],  # Punto de partida
+    ['Punto A', (-0.98, 2.45)],  # Primera ubicación
+    ['Punto B', (3.0, 6.0)],  # Segunda ubicación
+    ['Punto C', (3.0, 1.0)],  # Tercera ubicación
 ]
 
-detected_objects = []  # Lista global para almacenar objetos detectados
+
+# Variables para guardar los objetos de manera adecuada
+types = []              # Vector para guardar los tipos que recibe  (Tipo de objeto de 0 a n)
+poses = []              # Vector que guarda las posiciones detectadas   (Poses guardadas de 1 a n)
+detected_objects = []  # Vector global para almacenar objetos detectados
+
 
 # Función global para crear el movimiento al destino indicado
 def crear_destino(x, y):
@@ -46,7 +55,7 @@ def crear_destino(x, y):
     return goal
 
 # Función global para crear el movimiento al destino indicado con un rango de error
-def crear_destino_con_rango(x, y, rango=0.8):
+def crear_destino_con_rango(x, y, rango=1.5):
     """
     Crea un objetivo de navegación para move_base dentro de un rango especificado.
     """
@@ -114,6 +123,9 @@ class TurtleBot2NavigationState(State):
         self.max_attempts = max_attempts
         self.move_base_client = actionlib.SimpleActionClient('/move_base', MoveBaseAction)
 
+        # Variables globales para la detección y reordenación de los objetos
+        global types, poses 
+
         rospy.loginfo("Conectando con move_base...")
         if not self.move_base_client.wait_for_server(rospy.Duration(30.0)):
             rospy.logerr("No se pudo conectar con move_base.")
@@ -121,10 +133,29 @@ class TurtleBot2NavigationState(State):
         rospy.loginfo("Conexión con move_base establecida.")
 
         # Subscripción al tópico de deteción de objetos
+        rospy.Subscriber('/detected_shapes', String, self.shape_callback)        
         rospy.Subscriber('/detected_objects', PoseStamped, self.object_callback)
 
+    def shape_callback(self, msg):
+        types.append(msg.data)
+
     def object_callback(self, msg):
-        detected_objects.append(DetectedObject(msg.pose.position.x, msg.pose.position.y, "objeto"))
+        poses.append(Poses(msg.pose.position.x, msg.pose.position.y))
+
+    # Función para enlazar la pose con su tipo correspondiente
+    def objects_detected(self, types, poses):
+        """
+        Combina los vectores de tipos y poses para llenar el vector detected_objects.
+        """
+        if len(types) != len(poses):
+            rospy.logwarn("La cantidad de tipos y poses detectadas no coincide. Revisar las suscripciones.")
+            return
+
+        for object_type, pose in zip(types, poses):
+            detected_object = DetectedObject(pose.x, pose.y, object_type)
+            detected_objects.append(detected_object)
+            rospy.loginfo(f"Objeto detectado añadido: {detected_object}")
+
 
     def execute(self, userdata):
         rospy.loginfo("Iniciando navegación...")
@@ -186,6 +217,8 @@ class TurtleBot2NavigationState(State):
 
                         return 'navigation_failed'
         
+        self.objects_detected(types, poses)
+
         if detected_objects:
             rospy.loginfo("Objetos detectados durante la ruta:")
             for i, obj in enumerate(detected_objects):
@@ -194,23 +227,6 @@ class TurtleBot2NavigationState(State):
             rospy.loginfo("No se detectaron objetos durante la ruta.")
         
         return 'route_completed'
-
-    def calcular_orientacion(self, current_position, next_position):
-        delta_x = next_position[0] - current_position[0]
-        delta_y = next_position[1] - current_position[1]
-        return math.atan2(delta_y, delta_x)
-
-    def crear_destino(self, x, y, orientation):
-        goal = MoveBaseGoal()
-        goal.target_pose.header.frame_id = 'map'
-        goal.target_pose.header.stamp = rospy.Time.now()
-        goal.target_pose.pose.position.x = x
-        goal.target_pose.pose.position.y = y
-        goal.target_pose.pose.orientation.x = orientation[0]
-        goal.target_pose.pose.orientation.y = orientation[1]
-        goal.target_pose.pose.orientation.z = orientation[2]
-        goal.target_pose.pose.orientation.w = orientation[3]
-        return goal
 
 
 # Estado para navegar hacia objetos detectados
@@ -235,7 +251,7 @@ class GoToDetectedObjects(State):
             rospy.loginfo(f"Navegando hacia {obj}.")
             goal = crear_destino_con_rango(obj.x, obj.y)
             self.move_base_client.send_goal(goal)
-            success = self.move_base_client.wait_for_result(rospy.Duration(60))
+            success = self.move_base_client.wait_for_result(rospy.Duration(30))
             if success:
                 rospy.loginfo(f"{obj} alcanzado.")
             else:
@@ -273,7 +289,7 @@ class PatrolObjects(State):
             return 'patrol_completed'
 
         # Bucle para patrullar los objetos detectados
-        while not rospy.is_shutdown() and not self.completed:
+        while not self.completed or not rospy.is_shutdown():
             for obj in detected_objects:
                 if self.completed:  # Verificar si se recibió el comando "finalizar"
                     rospy.loginfo("Comando 'finalizar' recibido. Finalizando patrullaje.")
@@ -285,7 +301,7 @@ class PatrolObjects(State):
 
                 # Alomejor hay que quitar la parte de abajo para que en mitad de la trayectoria se detenga
 
-                if self.move_base_client.wait_for_result(rospy.Duration(60)):
+                if self.move_base_client.wait_for_result(rospy.Duration(30)):
                     rospy.loginfo(f"{obj} alcanzado.")
                 else:
                     rospy.logwarn(f"No se pudo alcanzar {obj}.")
