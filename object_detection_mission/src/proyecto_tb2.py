@@ -289,7 +289,7 @@ class PatrolObjects(State):
             return 'patrol_completed'
 
         # Bucle para patrullar los objetos detectados
-        while not self.completed or not rospy.is_shutdown():
+        while not self.completed and not rospy.is_shutdown():
             for obj in detected_objects:
                 if self.completed:  # Verificar si se recibió el comando "finalizar"
                     rospy.loginfo("Comando 'finalizar' recibido. Finalizando patrullaje.")
