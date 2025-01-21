@@ -1,6 +1,0 @@
-<launch>
-
-    <node name="main" pkg="object_detection_mission" type="proyecto_tb2.py" output="screen"/>
-    <node name="voz" pkg="object_detection_mission" type="voz_tb2.py" output="screen"/>
-
-</launch>

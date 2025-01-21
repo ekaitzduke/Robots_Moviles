@@ -1,5 +1,0 @@
-<launch>
-
-    <node name="object_detection" pkg="object_detection_mission" type="object_detection_tb2.py" output="screen"/>
-
-</launch>
