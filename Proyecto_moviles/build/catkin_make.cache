@@ -1,2 +1,0 @@
-object_detection_mission
--DCATKIN_DEVEL_PREFIX=/home/franciscocj/Proyecto_moviles/devel -DCMAKE_INSTALL_PREFIX=/home/franciscocj/Proyecto_moviles/install -G Unix Makefiles
