@@ -11,11 +11,17 @@ from geometry_msgs.msg import PoseStamped, Quaternion
 from std_msgs.msg import String
 from tf.transformations import quaternion_from_euler
 import numpy as np
+import rospkg
+import os
 
 # Cargar la red neuronal entrenada (MobileNet SSD)
-PROTOTXT_PATH = "/home/franciscocj/Proyecto_moviles/src/object_detection_mission/MobileNetSSD_deploy.prototxt"
-MODEL_PATH = "/home/franciscocj/Proyecto_moviles/src/object_detection_mission/MobileNetSSD_deploy.caffemodel"
-net = cv2.dnn.readNetFromCaffe(PROTOTXT_PATH, MODEL_PATH)
+# Ruta al modelo de Vosk (ajustar según tu configuración)
+rospack = rospkg.RosPack()
+package_path = rospack.get_path('object_detection_mission')
+
+Protox = os.path.join(package_path, 'MobileNetSSD_deploy.prototxt')
+Model = os.path.join(package_path, 'MobileNetSSD_deploy.caffemodel')
+net = cv2.dnn.readNetFromCaffe(Protox, Model)
 
 # Lista de clases del modelo
 CLASSES = ["background", "aeroplane", "bicycle", "bird", "boat",
